@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.pkl
+ml/artifacts/
+*.egg-info/
+.pytest_cache/
+.vscode/s
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
+celerybeat-schedule
