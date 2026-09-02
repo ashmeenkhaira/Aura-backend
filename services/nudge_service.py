@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
+from core.tz import now as ist_now
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.models import StressLog
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return ist_now()
 
 
 def compute_stress_score(

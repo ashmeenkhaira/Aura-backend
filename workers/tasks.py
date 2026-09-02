@@ -115,3 +115,56 @@ def update_behavior_profiles(self):
 @celery_app.task(name="workers.tasks.retrain_on_demand")
 def retrain_on_demand():
     return retrain_models.apply().get()
+
+
+@celery_app.task(name="workers.tasks.update_rl_rewards")
+def update_rl_rewards():
+    """
+    Daily task — compute RL rewards from completed preference feedback.
+    Reward signal:
+      +20 if task completed on time in user-chosen slot
+      +10 if user kept AURA's suggestion and completed
+      -5  if user moved the slot
+      -10 if task was abandoned after rescheduling
+    """
+    async def _update():
+        from core.database import AsyncSessionLocal
+        from models.models import SlotPreferenceFeedback, Task, TaskStatus
+        from sqlalchemy import select
+
+        engine, Session = _make_session()
+        try:
+            async with Session() as db:
+                result = await db.execute(
+                    select(SlotPreferenceFeedback).where(
+                        SlotPreferenceFeedback.reward == None   # noqa
+                    )
+                )
+                feedbacks = result.scalars().all()
+
+                for fb in feedbacks:
+                    task_result = await db.execute(
+                        select(Task).where(Task.id == fb.task_id)
+                    )
+                    task = task_result.scalar_one_or_none()
+                    if task is None:
+                        continue
+
+                    if task.status == TaskStatus.COMPLETED:
+                        reward = 20.0 if fb.was_kept else 10.0
+                        fb.was_completed = True
+                    elif task.status == TaskStatus.ABANDONED:
+                        reward = -10.0
+                        fb.was_completed = False
+                    elif not fb.was_kept:
+                        reward = -5.0
+                    else:
+                        continue   # task not resolved yet
+
+                    fb.reward = reward
+
+                await db.commit()
+        finally:
+            await engine.dispose()
+
+    return _run(_update())

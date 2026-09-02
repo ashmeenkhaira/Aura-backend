@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from core.tz import now as ist_now
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from models.models import Task, TaskEvent, TaskStatus, TaskCategory, EnergyLevel
@@ -24,7 +25,7 @@ VALID_TRANSITIONS = {
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return ist_now()
 
 
 def _log_event(task: Task, from_status: TaskStatus,

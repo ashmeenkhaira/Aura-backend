@@ -13,3 +13,5 @@ lightgbm
 scikit-learn
 pandas
 numpy
+celery[redis]
+ortools

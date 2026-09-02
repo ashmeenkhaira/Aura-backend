@@ -35,4 +35,8 @@ celery_app.conf.beat_schedule = {
         "task"    : "workers.tasks.update_behavior_profiles",
         "schedule": crontab(hour=0, minute=30),
     },
+    "daily-rl-rewards": {
+        "task"    : "workers.tasks.update_rl_rewards",
+        "schedule": crontab(hour=1, minute=0),  # 01:00 UTC daily
+    },
 }

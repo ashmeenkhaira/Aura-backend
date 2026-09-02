@@ -19,7 +19,9 @@ FEATURES = [
     "day_of_week",
 ]
 
-MODEL_PATH = "D:\\Aura\\ml\\artifacts\\lgbm_procrastination.pkl"
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "artifacts", "lgbm_procrastination.pkl")
+
+_cached_lgbm_model = None
 
 
 def train_procrastination(df: pd.DataFrame) -> dict:
@@ -88,6 +90,7 @@ def predict_procrastination_risk(task_features: dict) -> float:
     Returns float 0-1. Returns 0.5 if model not trained yet.
     Higher = more likely to procrastinate.
     """
+    global _cached_lgbm_model
     if not os.path.exists(MODEL_PATH):
         # Heuristic fallback
         risk  = 0.0
@@ -96,8 +99,14 @@ def predict_procrastination_risk(task_features: dict) -> float:
         risk += min(task_features.get("reschedule_count", 0) * 0.05, 0.25)
         return round(min(risk, 1.0), 4)
 
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
+    if _cached_lgbm_model is None:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+            with open(MODEL_PATH, "rb") as f:
+                _cached_lgbm_model = pickle.load(f)
+
+    model = _cached_lgbm_model
 
     row = pd.DataFrame([{
         "estimated_duration"      : task_features.get("estimated_duration", 60),
