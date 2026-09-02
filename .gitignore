@@ -7,6 +7,7 @@ ml/artifacts/
 *.egg-info/
 .pytest_cache/
 .vscode/s
+.venv-linux/
 celerybeat-schedule.bak
 celerybeat-schedule.dat
 celerybeat-schedule.dir

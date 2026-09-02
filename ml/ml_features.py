@@ -15,8 +15,11 @@ async def extract_features(db: AsyncSession) -> pd.DataFrame:
             t.reschedule_count,
             t.skip_count,
             t.status::text,
-            EXTRACT(HOUR FROM e.occurred_at) AS hour_of_day,
-            EXTRACT(DOW  FROM e.occurred_at) AS day_of_week
+            -- occurred_at is timestamptz and the DB session runs in UTC, so
+            -- EXTRACT must be pinned to IST or training sees UTC hours while
+            -- inference (main.py) sends IST hours.
+            EXTRACT(HOUR FROM e.occurred_at AT TIME ZONE 'Asia/Kolkata') AS hour_of_day,
+            EXTRACT(DOW  FROM e.occurred_at AT TIME ZONE 'Asia/Kolkata') AS day_of_week
         FROM tasks t
         JOIN task_events e
           ON e.task_id = t.id

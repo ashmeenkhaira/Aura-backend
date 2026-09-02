@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from core.tz import now as ist_now
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from models.models import (
@@ -8,7 +9,7 @@ from models.models import (
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return ist_now()
 
 
 async def build_behavior_profile(

@@ -1,9 +1,26 @@
 import uuid
 from datetime import datetime, timezone
+from core.tz import IST, now as ist_now
 from sqlalchemy import String, Boolean, DateTime, Integer, Float, Text, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 import enum
+
+
+class ISTDateTime(TypeDecorator):
+    """timestamptz that always reads back as IST.
+
+    asyncpg decodes timestamptz to UTC-aware datetimes no matter what the
+    session timezone is, so without this the write path emits +05:30 while
+    the read path emits +00:00 — same instant, but every API response and
+    .hour lookup downstream silently disagrees with the rest of the app.
+    """
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_result_value(self, value, dialect):
+        return value.astimezone(IST) if value is not None else None
 
 
 class Base(DeclarativeBase):
@@ -56,7 +73,7 @@ class User(Base):
     timezone: Mapped[str] = mapped_column(String(50), default="Asia/Kolkata")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        ISTDateTime, default=lambda: ist_now()
     )
 
 
@@ -82,7 +99,7 @@ class Task(Base):
     estimated_duration: Mapped[int] = mapped_column(Integer, nullable=False)  # minutes
     actual_duration: Mapped[int | None] = mapped_column(Integer)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
-    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deadline: Mapped[datetime | None] = mapped_column(ISTDateTime)
 
     # State machine
     status: Mapped[TaskStatus] = mapped_column(
@@ -94,13 +111,13 @@ class Task(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        ISTDateTime, default=lambda: ist_now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        ISTDateTime, default=lambda: ist_now()
     )
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(ISTDateTime)
+    completed_at: Mapped[datetime | None] = mapped_column(ISTDateTime)
 
 
 class TaskEvent(Base):
@@ -126,8 +143,8 @@ class TaskEvent(Base):
     stress_score: Mapped[int | None] = mapped_column(Integer)
 
     occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        ISTDateTime,
+        default=lambda: ist_now(),
     )
 
 class StressLog(Base):
@@ -153,8 +170,8 @@ class StressLog(Base):
     hour_of_day: Mapped[int | None] = mapped_column(Integer)
     day_of_week: Mapped[int | None] = mapped_column(Integer)
     recorded_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        ISTDateTime,
+        default=lambda: ist_now(),
     )
 
 
@@ -188,6 +205,61 @@ class UserBehaviorProfile(Base):
 
     # Timestamps
     last_updated: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        ISTDateTime,
+        default=lambda: ist_now(),
+    )
+
+
+class SlotPreferenceFeedback(Base):
+    __tablename__ = "slot_preference_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    task_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+    # What AURA suggested
+    suggested_start   : Mapped[datetime] = mapped_column(ISTDateTime)
+    suggested_score   : Mapped[float]    = mapped_column(Float)
+
+    # What user chose (if they moved it)
+    user_chosen_start : Mapped[datetime | None] = mapped_column(ISTDateTime)
+
+    # Outcome
+    was_completed     : Mapped[bool | None] = mapped_column(Boolean)
+    was_kept          : Mapped[bool]        = mapped_column(Boolean, default=True)
+
+    # RL reward signal
+    reward            : Mapped[float | None] = mapped_column(Float)
+
+    hour_of_day       : Mapped[int]          = mapped_column(Integer)
+    day_of_week       : Mapped[int]          = mapped_column(Integer)
+    created_at        : Mapped[datetime]     = mapped_column(ISTDateTime)
+
+class ScheduledSlot(Base):
+    __tablename__ = "scheduled_slots"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    task_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, index=True
+    )
+    scheduled_start: Mapped[datetime] = mapped_column(
+        ISTDateTime, nullable=False
+    )
+    scheduled_end: Mapped[datetime] = mapped_column(
+        ISTDateTime, nullable=False
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(
+        String(20), default="ai"
+    )  # "ai" or "user"
+    created_at: Mapped[datetime] = mapped_column(
+        ISTDateTime,
+        default=lambda: ist_now(),
     )

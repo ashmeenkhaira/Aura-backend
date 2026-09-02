@@ -19,7 +19,9 @@ FEATURES = [
     "day_of_week",
 ]
 
-MODEL_PATH = "D:\\Aura\\ml\\artifacts\\xgb_completion.pkl"
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "artifacts", "xgb_completion.pkl")
+
+_cached_xgb_model = None
 
 
 def train(df: pd.DataFrame) -> dict:
@@ -71,11 +73,18 @@ def predict_completion(task_features: dict) -> float:
     Predict probability that a task will be completed.
     Returns float 0-1. Returns 0.5 if model not trained yet.
     """
+    global _cached_xgb_model
     if not os.path.exists(MODEL_PATH):
         return 0.5
 
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
+    if _cached_xgb_model is None:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
+            with open(MODEL_PATH, "rb") as f:
+                _cached_xgb_model = pickle.load(f)
+
+    model = _cached_xgb_model
 
     row = pd.DataFrame([{
         "estimated_duration"      : task_features.get("estimated_duration", 60),
